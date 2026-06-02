@@ -1,0 +1,95 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum AuthProvider {
+  EMAIL
+  APPLE
+  GOOGLE
+}
+
+model User {
+  id             String       @id @default(uuid())
+  email          String       @unique
+  passwordHash   String?
+  authProvider   AuthProvider @default(EMAIL)
+  providerUserId String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  profile      UserProfile?
+  gutAnswers   GutAnswers?
+  healthReport HealthReport?
+  events       AppEvent[]
+}
+
+model UserProfile {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  name           String?
+  age            Int?
+  gender         String?
+  heightCm       Float?
+  weightKg       Float?
+  targetWeightKg Float?
+  activityLevel  String?
+  goal           String?
+  medicalFlags   Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model GutAnswers {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  bowelFrequency    String?
+  stoolConsistency  String?
+  bloatingFrequency String?
+  waterIntake       Float?
+  sleepHours        Float?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model HealthReport {
+  id                String    @id @default(uuid())
+  userId            String    @unique
+  bmi               Float?
+  bmiCategory       String?
+  bmr               Float?
+  tdee              Float?
+  healthyWeightMin  Float?
+  healthyWeightMax  Float?
+  targetCaloriesMin Float?
+  targetCaloriesMax Float?
+  gutHealthScore    Float?
+  educationalGutAge Int?
+  priorityActions   Json?
+  riskSignals       Json?
+  generatedAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AppEvent {
+  id        String   @id @default(uuid())
+  userId    String?
+  eventName String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
