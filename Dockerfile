@@ -38,4 +38,6 @@ EXPOSE 3000
 
 # Migrations are applied explicitly after the stack is up (see DEPLOY_VPS.md):
 #   docker compose exec api npm run prisma:migrate:deploy
-CMD ["node", "dist/main"]
+# Entry point is dist/src/main.js (nest build keeps the src/ path because the
+# project root is the rootDir, e.g. prisma.config.ts lives at the root).
+CMD ["node", "dist/src/main.js"]
