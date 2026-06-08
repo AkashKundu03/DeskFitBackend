@@ -11,6 +11,8 @@ async function bootstrap() {
       transform: true,
     }),
   );
-  await app.listen(process.env.PORT ?? 3000);
+  // Bind to 0.0.0.0 so the API is reachable inside Docker / from the LAN,
+  // not just loopback. Port comes from the environment (defaults to 3000).
+  await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
 }
 bootstrap();

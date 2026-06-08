@@ -1,0 +1,10 @@
+# Optional HTTPS reverse proxy for the DeskFit API.
+# Enable with:  docker compose --env-file .env.production --profile proxy up -d --build
+#
+# Replace api.your-domain.com with your real domain (its DNS A record must point
+# to this VPS). Caddy then provisions and renews a Let's Encrypt certificate
+# automatically and proxies HTTPS traffic to the api service.
+
+api.your-domain.com {
+    reverse_proxy api:3000
+}

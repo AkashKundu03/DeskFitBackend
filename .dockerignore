@@ -1,0 +1,25 @@
+# Installed/compiled artifacts — rebuilt inside the image
+node_modules
+dist
+
+# Secrets / local env — NEVER copy into the image
+.env
+.env.local
+.env.*.local
+.env.production
+
+# VCS & tooling
+.git
+.gitignore
+coverage
+.DS_Store
+
+# Docker / deploy meta (not needed in the build context)
+Dockerfile
+.dockerignore
+docker-compose.yml
+Caddyfile
+DEPLOY_VPS.md
+
+# Logs
+*.log
