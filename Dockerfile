@@ -24,11 +24,11 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl ca-certificates wget \
   && rm -rf /var/lib/apt/lists/*
 
-# Bring over installed deps (incl. generated Prisma client + the prisma CLI),
-# the compiled app, and the files needed to run migrations.
+# Bring over installed deps and the compiled app. The Prisma client lives in
+# node_modules (default `prisma-client-js` output), so copying node_modules is
+# all that's needed — there is no separate ./generated folder to copy.
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/generated ./generated
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
