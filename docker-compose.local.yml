@@ -1,0 +1,39 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# LOCAL-ONLY Postgres for DeskFit backend development.
+#
+# This file is for your Mac ONLY. It is completely separate from the production
+# stack (docker-compose.yml on the VPS) — different project name, different
+# volume, and it PUBLISHES the Postgres port so the natively-run backend
+# (`npm run start:dev`) can reach it at localhost:5432.
+#
+# Start it:
+#   docker compose -f docker-compose.local.yml --env-file .env.local up -d postgres
+# Stop it (SAFE — keeps your data):
+#   docker compose -f docker-compose.local.yml down
+#
+# ⚠️ NEVER run `down -v` / `docker volume rm` here unless you intend to wipe your
+#    LOCAL dev database. This file never touches production.
+# ──────────────────────────────────────────────────────────────────────────────
+
+name: deskfit-local
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: deskfit_local_postgres
+    restart: unless-stopped
+    env_file:
+      - .env.local
+    ports:
+      # Published to the host so the native backend reaches it at localhost:5432.
+      - "5432:5432"
+    volumes:
+      - deskfit_local_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  deskfit_local_pgdata:
