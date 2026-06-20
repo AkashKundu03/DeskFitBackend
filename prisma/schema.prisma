@@ -28,6 +28,10 @@ model User {
   gutAnswers   GutAnswers?
   healthReport HealthReport?
   events       AppEvent[]
+
+  workoutPlans    WorkoutPlan[]
+  workoutSessions WorkoutSession[]
+  mealPlan        MealPlan?
 }
 
 model UserProfile {
@@ -92,4 +96,78 @@ model AppEvent {
   createdAt DateTime @default(now())
 
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 2: planner persistence (additive). A real logged-in user gets a weekly
+// workout plan made of distinct per-day sessions, plus a meal-target plan. All
+// generation stays deterministic (no AI) — these tables just persist the result
+// and its lifecycle (planned/completed/skipped/rescheduled).
+// ─────────────────────────────────────────────────────────────────────────────
+
+model WorkoutPlan {
+  id            String   @id @default(uuid())
+  userId        String
+  weekStartDate DateTime // Monday 00:00 of the plan's week
+  selectedDays  Json // e.g. ["Mon","Tue","Thu","Fri"]
+  goal          String?
+  level         String?
+  location      String?
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions WorkoutSession[]
+
+  @@index([userId, weekStartDate])
+  @@index([userId, active])
+}
+
+model WorkoutSession {
+  id                String   @id @default(uuid())
+  planId            String
+  userId            String
+  weekday           String // "Mon"
+  date              DateTime
+  title             String
+  focus             String
+  focusLabel        String
+  durationMin       Int
+  location          String
+  equipment         Json // string[]
+  estimatedCalories Int
+  warmup            Json // ExerciseItem[]
+  exercises         Json // ExerciseItem[] (main)
+  coachNote         String
+  status            String   @default("planned") // planned | completed | skipped | rescheduled
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  plan WorkoutPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  user User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([planId])
+}
+
+model MealPlan {
+  id           String   @id @default(uuid())
+  userId       String   @unique // one active meal-target plan per user (MVP)
+  mealCount    Int
+  dietaryPref  String
+  proteinPrefs Json // string[]
+  carbPrefs    Json // string[]
+  fiberPrefs   Json // string[]
+  allergens    Json // string[]
+  dailyKcal    Int
+  proteinG     Int
+  carbsG       Int
+  fatG         Int
+  fiberG       Int
+  meals        Json // MealTarget[] incl. per-meal status
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
