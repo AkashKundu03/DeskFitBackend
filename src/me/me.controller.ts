@@ -13,12 +13,31 @@ import { MeService } from './me.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateGutAnswersDto } from './dto/update-gut-answers.dto';
 import { UpdateReportDto } from './dto/update-report.dto';
+import { UpdateAssessmentDto } from './dto/update-assessment.dto';
 import { CreateEventDto } from './dto/create-event.dto';
 
 @Controller('me')
 @UseGuards(JwtAuthGuard)
 export class MeController {
   constructor(private readonly meService: MeService) {}
+
+  @Get()
+  getMe(@CurrentUser() user: AuthUser) {
+    return this.meService.getMe(user.userId);
+  }
+
+  @Get('assessment')
+  getAssessment(@CurrentUser() user: AuthUser) {
+    return this.meService.getAssessment(user.userId);
+  }
+
+  @Put('assessment')
+  updateAssessment(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: UpdateAssessmentDto,
+  ) {
+    return this.meService.upsertAssessment(user.userId, dto);
+  }
 
   @Get('profile')
   getProfile(@CurrentUser() user: AuthUser) {
