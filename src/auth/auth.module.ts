@@ -6,6 +6,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
 import { SocialTokenVerifier } from './social-token-verifier';
+import { AppleAccountService } from './apple-account.service';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { SocialTokenVerifier } from './social-token-verifier';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, SocialTokenVerifier],
+  providers: [AuthService, JwtStrategy, SocialTokenVerifier, AppleAccountService],
+  exports: [AppleAccountService],
 })
 export class AuthModule {}

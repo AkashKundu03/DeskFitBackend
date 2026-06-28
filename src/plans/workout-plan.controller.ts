@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -15,6 +16,12 @@ import {
   RescheduleSessionDto,
   SessionActionDto,
 } from './dto/session-action.dto';
+import { FixWeekDto } from './dto/fix-week.dto';
+import {
+  CreateStandaloneWorkoutDto,
+  StandaloneActionDto,
+} from './dto/standalone-workout.dto';
+import { isValidISODate } from '../coach/week';
 
 /**
  * Authenticated, DB-backed weekly workout plan. Distinct day-wise sessions are
@@ -40,8 +47,11 @@ export class WorkoutPlanController {
   }
 
   @Get('weekly-plan/current')
-  getCurrent(@CurrentUser() user: AuthUser) {
-    return this.plans.getCurrent(user.userId);
+  getCurrent(@CurrentUser() user: AuthUser, @Query('date') date?: string) {
+    // `date` is the client's LOCAL today (yyyy-mm-dd) so week boundaries match
+    // the user's timezone. Ignored if malformed → falls back to the server date.
+    const localToday = date && isValidISODate(date) ? date : undefined;
+    return this.plans.getCurrent(user.userId, localToday);
   }
 
   @Post('session/complete')
@@ -66,6 +76,7 @@ export class WorkoutPlanController {
       user.userId,
       dto.sessionId,
       dto.toWeekday,
+      dto.swap ?? false,
     );
   }
 
@@ -75,6 +86,65 @@ export class WorkoutPlanController {
     return this.plans.shorterSession(user.userId, dto.sessionId);
   }
 
+  /** Regenerate one day's workout without touching the rest of the week. */
+  @Post('session/regenerate')
+  @HttpCode(200)
+  regenerate(@CurrentUser() user: AuthUser, @Body() dto: SessionActionDto) {
+    return this.plans.regenerateDay(user.userId, dto.sessionId);
+  }
+
+  // ── Standalone (today-only) workouts ───────────────────────────────────────
+
+  @Post('standalone')
+  @HttpCode(200)
+  saveStandalone(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: CreateStandaloneWorkoutDto,
+  ) {
+    return this.plans.saveStandaloneWorkout(user.userId, dto, dto.date);
+  }
+
+  @Get('standalone/today')
+  currentStandalone(@CurrentUser() user: AuthUser, @Query('date') date?: string) {
+    const localToday = date && isValidISODate(date) ? date : undefined;
+    return this.plans.currentStandaloneWorkout(user.userId, localToday);
+  }
+
+  @Post('standalone/complete')
+  @HttpCode(200)
+  completeStandalone(@CurrentUser() user: AuthUser, @Body() dto: StandaloneActionDto) {
+    return this.plans.setStandaloneStatus(user.userId, dto.id, 'completed');
+  }
+
+  @Post('standalone/skip')
+  @HttpCode(200)
+  skipStandalone(@CurrentUser() user: AuthUser, @Body() dto: StandaloneActionDto) {
+    return this.plans.setStandaloneStatus(user.userId, dto.id, 'skipped');
+  }
+
+  /** Preview "Fix my remaining week" — returns the before/after change set. */
+  @Post('fix-week/preview')
+  @HttpCode(200)
+  previewFixWeek(@CurrentUser() user: AuthUser, @Body() dto: FixWeekDto) {
+    return this.plans.previewFixWeek(
+      user.userId,
+      dto.date,
+      dto.unavailableDays ?? [],
+    );
+  }
+
+  /** Apply "Fix my remaining week" — persists the move and returns plan + audit. */
+  @Post('fix-week/apply')
+  @HttpCode(200)
+  applyFixWeek(@CurrentUser() user: AuthUser, @Body() dto: FixWeekDto) {
+    return this.plans.applyFixWeek(
+      user.userId,
+      dto.date,
+      dto.unavailableDays ?? [],
+    );
+  }
+
+  /** Back-compat alias for the old rebalance route. */
   @Post('rebalance-week')
   @HttpCode(200)
   rebalance(@CurrentUser() user: AuthUser) {

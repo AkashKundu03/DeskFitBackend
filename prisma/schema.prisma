@@ -21,6 +21,8 @@ model User {
   passwordHash   String?
   authProvider   AuthProvider @default(EMAIL)
   providerUserId String?
+  appleRefreshToken   String? // captured at Apple sign-in, used for real revocation
+  deletionScheduledAt DateTime? // set when the user schedules deletion (7-day window)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -29,9 +31,15 @@ model User {
   healthReport HealthReport?
   events       AppEvent[]
 
-  workoutPlans    WorkoutPlan[]
-  workoutSessions WorkoutSession[]
-  mealPlan        MealPlan?
+  workoutPlans       WorkoutPlan[]
+  workoutSessions    WorkoutSession[]
+  mealPlan           MealPlan?
+  standaloneWorkouts StandaloneWorkout[]
+  planAuditEvents    PlanAuditEvent[]
+  weeklyMealPlans       WeeklyMealPlan[]
+  mealRegenerationEvents MealRegenerationEvent[]
+  healthDailySummaries  HealthDailySummary[]
+  healthCheckIns        HealthCheckIn[]
 }
 
 model UserProfile {
@@ -170,4 +178,220 @@ model MealPlan {
   updatedAt    DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// A "today-only" generated workout that isn't part of a weekly plan, persisted
+// so its completion state survives reinstalls and syncs across devices.
+model StandaloneWorkout {
+  id                String   @id @default(uuid())
+  userId            String
+  date              DateTime // the calendar day it was generated for
+  title             String
+  focus             String
+  focusLabel        String
+  durationMin       Int
+  location          String
+  equipment         Json // string[]
+  estimatedCalories Int
+  warmup            Json // ExerciseItem[]
+  exercises         Json // ExerciseItem[]
+  coachNote         String
+  status            String   @default("planned") // planned | completed | skipped
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+}
+
+// Audit trail of automatic plan changes (e.g. "Fix my remaining week") so we can
+// always explain what changed and why.
+model PlanAuditEvent {
+  id        String   @id @default(uuid())
+  userId    String
+  planId    String?
+  kind      String // "fix_week" | "roll_forward" | ...
+  changes   Json // [{ sessionId, title, from, to }]
+  detail    Json? // { feasible, fallback, reason, todayWeekday, ... }
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 2 — repeating weekly meal template.
+// A WeeklyMealPlan owns 7 MealPlanDays (Mon–Sun) that repeat every week until
+// the user regenerates. FoodItem is the curated, replaceable catalog; portions
+// reference it by slug and carry denormalized macros so historical plans stay
+// stable even if the catalog is later edited.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model FoodItem {
+  id             String   @id @default(uuid())
+  slug           String   @unique
+  name           String
+  category       String // protein | carb | vegetable | fruit | fat | dairy | legume
+  kcalPer100g    Float
+  proteinPer100g Float
+  carbsPer100g   Float
+  fatPer100g     Float
+  fiberPer100g   Float
+  servingGrams   Float
+  servingUnit    String
+  diet           String // vegan | veg | egg | nonVeg
+  allergens      Json // string[]
+  source         String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model WeeklyMealPlan {
+  id           String   @id @default(uuid())
+  userId       String
+  active       Boolean  @default(true)
+  mealCount    Int
+  includeSnack Boolean  @default(false)
+  dietaryPref  String
+  proteinPrefs Json
+  carbPrefs    Json
+  fiberPrefs   Json
+  allergens    Json
+  dislikes     Json
+  dailyKcal    Int
+  proteinG     Int
+  carbsG       Int
+  fatG         Int
+  fiberG       Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user               User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  days               MealPlanDay[]
+  regenerationEvents MealRegenerationEvent[]
+
+  @@index([userId, active])
+}
+
+model MealPlanDay {
+  id      String @id @default(uuid())
+  planId  String
+  weekday String // Mon..Sun (repeating template)
+
+  plan  WeeklyMealPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  meals Meal[]
+
+  @@index([planId])
+}
+
+model Meal {
+  id       String @id @default(uuid())
+  dayId    String
+  slot     String // breakfast | lunch | dinner | snack
+  name     String
+  kcal     Int
+  proteinG Int
+  carbsG   Int
+  fatG     Int
+  fiberG   Int
+  status   String @default("planned") // planned | completed | skipped (current week)
+  version  Int    @default(1)
+
+  day      MealPlanDay       @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  portions MealFoodPortion[]
+
+  @@index([dayId])
+}
+
+model MealFoodPortion {
+  id       String @id @default(uuid())
+  mealId   String
+  foodSlug String // references FoodItem.slug (soft link; macros denormalized below)
+  name     String
+  grams    Float
+  kcal     Int
+  proteinG Float
+  carbsG   Float
+  fatG     Float
+  fiberG   Float
+
+  meal Meal @relation(fields: [mealId], references: [id], onDelete: Cascade)
+
+  @@index([mealId])
+}
+
+model MealRegenerationEvent {
+  id       String   @id @default(uuid())
+  userId   String
+  planId   String
+  mealId   String?
+  weekKey  String // e.g. "2026-W27" (user-local) — drives the 5/week quota
+  success  Boolean
+  reason   String?
+  createdAt DateTime @default(now())
+
+  user User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan WeeklyMealPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([userId, weekKey])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 3 — optional HealthKit. Raw samples stay on-device; only opt-in DAILY
+// AGGREGATES required for adaptation are uploaded here. Additive; the app never
+// depends on this existing.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model HealthDailySummary {
+  id               String   @id @default(uuid())
+  userId           String
+  date             DateTime // civil day (UTC midnight of the user-local date)
+  timezone         String
+  steps            Int?
+  activeEnergyKcal Int?
+  exerciseMinutes  Int?
+  sleepMinutes     Int?
+  restingHR        Int?
+  hrv              Float?
+  workoutCount     Int?
+  workoutMinutes   Int?
+  sourceCoverage   Json? // which sources/devices contributed
+  sampleTimestamps Json? // last sample time per metric
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId, date])
+}
+
+// Subjective daily check-in (Phase 4) — combined with sensor trends to produce
+// recovery signals. All fields optional; 1..5 scales.
+model HealthCheckIn {
+  id        String   @id @default(uuid())
+  userId    String
+  date      DateTime // civil day (UTC midnight of user-local date)
+  energy    Int?
+  soreness  Int?
+  mood      Int?
+  stress    Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId, date])
+}
+
+// Anonymous exit feedback (Phase 6). Deliberately has NO userId / FK — we keep
+// the reason for product learning but never retain who left.
+model AccountDeletionFeedback {
+  id        String   @id @default(uuid())
+  reason    String?
+  mode      String // "now" | "scheduled"
+  createdAt DateTime @default(now())
 }

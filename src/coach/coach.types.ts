@@ -23,6 +23,14 @@ export type Equipment =
   | 'pullupBar'
   | 'treadmill'
   | 'cycle'
+  | 'kettlebell'
+  | 'cable'
+  | 'machine'
+  | 'smithMachine'
+  | 'rowingMachine'
+  | 'jumpRope'
+  | 'medicineBall'
+  | 'trx'
   | 'none';
 export type ExerciseCategory =
   | 'strength'

@@ -11,6 +11,7 @@ import { LoginDto } from './dto/login.dto';
 import { AppleAuthDto } from './dto/apple-auth.dto';
 import { GoogleAuthDto } from './dto/google-auth.dto';
 import { SocialTokenVerifier } from './social-token-verifier';
+import { AppleAccountService } from './apple-account.service';
 
 @Injectable()
 export class AuthService {
@@ -18,6 +19,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly socialVerifier: SocialTokenVerifier,
+    private readonly apple: AppleAccountService,
   ) {}
 
   async signup(dto: SignupDto) {
@@ -63,6 +65,17 @@ export class AuthService {
       identity.sub,
       identity.email ?? dto.email,
     );
+    // Best-effort: capture a refresh token so the account can be properly revoked
+    // at deletion. Never blocks sign-in.
+    if (dto.authorizationCode && this.apple.isConfigured()) {
+      const refresh = await this.apple.exchangeAuthorizationCode(dto.authorizationCode);
+      if (refresh) {
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: { appleRefreshToken: refresh },
+        });
+      }
+    }
     return this.buildToken(user.id, user.email);
   }
 

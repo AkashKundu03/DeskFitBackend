@@ -3,9 +3,11 @@ import {
   IsArray,
   IsIn,
   IsInt,
+  IsOptional,
+  IsString,
+  Matches,
 } from 'class-validator';
 
-const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 const EQUIPMENT = [
   'bodyweight',
   'dumbbells',
@@ -26,12 +28,8 @@ const EQUIPMENT = [
   'none',
 ] as const;
 
-export class CreateWeeklyPlanDto {
-  @IsArray()
-  @ArrayNotEmpty()
-  @IsIn(WEEKDAYS, { each: true })
-  selectedDays: (typeof WEEKDAYS)[number][];
-
+/** Generate + persist a one-off "today only" workout. */
+export class CreateStandaloneWorkoutDto {
   @IsIn(['gym', 'home', 'outdoor', 'office', 'mixed'])
   location: 'gym' | 'home' | 'outdoor' | 'office' | 'mixed';
 
@@ -44,9 +42,23 @@ export class CreateWeeklyPlanDto {
   @IsIn(EQUIPMENT, { each: true })
   equipment: (typeof EQUIPMENT)[number][];
 
+  @IsIn(['fatLoss', 'strength', 'muscleBuilding', 'mobility', 'cardio', 'balanced'])
+  focus: 'fatLoss' | 'strength' | 'muscleBuilding' | 'mobility' | 'cardio' | 'balanced';
+
   @IsIn(['beginner', 'intermediate', 'advanced'])
   level: 'beginner' | 'intermediate' | 'advanced';
 
-  @IsIn(['fatLoss', 'muscleGain', 'maintenance'])
-  goal: 'fatLoss' | 'muscleGain' | 'maintenance';
+  @IsOptional()
+  @IsString()
+  title?: string;
+
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'date must be yyyy-mm-dd' })
+  date?: string;
+}
+
+/** Acts on a single standalone workout by id. */
+export class StandaloneActionDto {
+  @IsString()
+  id: string;
 }

@@ -16,6 +16,14 @@ const EQUIPMENT = [
   'pullupBar',
   'treadmill',
   'cycle',
+  'kettlebell',
+  'cable',
+  'machine',
+  'smithMachine',
+  'rowingMachine',
+  'jumpRope',
+  'medicineBall',
+  'trx',
   'none',
 ] as const;
 

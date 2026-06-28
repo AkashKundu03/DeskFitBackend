@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 
@@ -15,6 +15,11 @@ export class RescheduleSessionDto {
 
   @IsIn(WEEKDAYS)
   toWeekday: (typeof WEEKDAYS)[number];
+
+  /** When the target day is occupied, set true to swap the two sessions. */
+  @IsOptional()
+  @IsBoolean()
+  swap?: boolean;
 
   @IsOptional()
   @IsIn(['beginner', 'intermediate', 'advanced'])
